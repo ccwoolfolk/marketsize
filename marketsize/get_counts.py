@@ -1,4 +1,5 @@
 import csv
+import io
 from datetime import datetime
 import requests
 from typing import Dict, List
@@ -12,12 +13,17 @@ ProductCodeDescription = str
 def get_product_codes() -> Dict[ProductCode, ProductCodeDescription]:
     product_codes: Dict[ProductCode, ProductCodeDescription] = dict()
 
-    with open(config.PRODUCT_CODE_FILEPATH) as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter=',')
+    with open(config.PRODUCT_CODE_FILEPATH, 'rb') as csv_file:
+        # read into in-memory file-like object, so we can decode
+        text = io.StringIO(csv_file.read().decode('cp1252'))
+        csv_reader = csv.reader(text, delimiter='|')
         next(csv_reader) # Skip header
 
         for row in csv_reader:
-            product_codes[row[4]] = row[5]
+            product_code = row[2]
+            description = row[3]
+            if product_code in config.PRODUCT_CODE_WEIGHTS:
+                product_codes[product_code] = description
 
     return product_codes
 
@@ -69,10 +75,11 @@ def get_n_filings_per_year () -> int:
     print(f'GET: {url}')
     for r in response.json()['results']:
         count = r['count']
-        total += count
         code = r['term']
+        weight = config.PRODUCT_CODE_WEIGHTS[code]
+        total += count*weight
         desc = product_codes[code]
-        print(f'{count} -- {code}: {desc}')
+        print(f'{count: <6} ({round(count*weight)}) -- {code}: {desc}')
 
     print(f'{total} matching entries found.')
 
